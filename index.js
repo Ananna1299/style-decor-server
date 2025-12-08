@@ -2,7 +2,7 @@ const express = require('express')
 const app = express()
 const cors=require("cors")
 require('dotenv').config()
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.PORT || 3000
 
 const admin = require("firebase-admin");
@@ -64,15 +64,121 @@ async function run() {
 
     const dB = client.db("style_decor_db");
     const usersCollection = dB.collection("users");
+    const servicesCollection = dB.collection("services");
+
+
+
+    //middleware for admin access
+     const verifyAdmin=async(req,res,next)=>{
+      const email=req.decodedEmail;
+      const query={email}
+
+      const user=await usersCollection.findOne(query)
+
+      if (!user || user.role!=="admin"){
+        return res.status(403).send({message:"Forbidden Access"})
+      }
+
+     
+      next()
+     }
 
 
     //user related apis
-    
+
+    //user data post api
+    app.post("/users",async(req,res)=>{
+    const user=req.body;
+    user.role="user"
+    user.createdAt=new Date()
+    const email=user.email
+
+    console.log("Received user:", user);   // ← add this
+  console.log("Photo URL:", user.photoURL); // ← add this
 
 
 
+    const userExists=await usersCollection.findOne({email})
+    if (userExists){
+      return res.send({message:"User already exist"})
+    }
+    const result=await usersCollection.insertOne(user);
+    res.send(result)
+   })
 
+   //user role get
+   app.get("/users/:email/role",async(req,res)=>{
+    const email=req.params.email;
+    const query={email:email}
+    const user=await usersCollection.findOne(query)
+    res.send({role: user?.role || "user"})
 
+   })
+    //get all the users
+   app.get("/users",verifyToken,async(req,res)=>{
+    const searchText=req.query.searchText;
+    const query={}
+    if (searchText){
+      query.$or=[
+        { displayName: { $regex: searchText, $options: "i" } },   // case-insensitive
+      { email: { $regex: searchText, $options: "i" } }   // case-insensitive
+      ]
+    }
+    const cursor=await usersCollection.find(query).toArray();
+    res.send(cursor)
+   })
+
+   // update the user info
+   app.patch("/users/:id/role",verifyToken,verifyAdmin,async(req,res)=>{
+    const id=req.params.id;
+    const query={_id: new ObjectId(id)}
+    const role=req.body.role;
+    const updated={
+      $set:{
+        role:role
+      }
+    }
+
+     const result=await usersCollection.updateOne(query,updated)
+     res.send(result)
+   })
+
+   app.get('/users/profile', verifyToken, async (req, res) => {
+
+            const email = req.query.email;
+            const query = {}
+            if (email) {
+                query.email = email
+            }
+
+            // verify user have access to see this data
+            if (email !== req.decodedEmail) {
+                return res.status(403).send({ message: 'forbidden access' })
+            }
+
+            const cursor = usersCollection.find(query)
+            const result = await cursor.toArray()
+            res.send(result);
+        })
+
+     //service related apis
+
+     //post a service
+    app.post("/services",async(req,res)=>{
+      const service=req.body;
+      service.createdAt=new Date();
+      //console.log(service)
+
+      const result = await servicesCollection.insertOne(service);
+      res.send(result)
+    })
+
+    //get all services api
+    app.get("/services",async(req,res)=>{
+
+        result=await servicesCollection.find().toArray()
+        res.send(result)
+    })
 
 
 
