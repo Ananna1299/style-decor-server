@@ -164,7 +164,7 @@ async function run() {
      //service related apis
 
      //post a service
-    app.post("/services",async(req,res)=>{
+    app.post("/services",verifyToken,verifyAdmin,async(req,res)=>{
       const service=req.body;
       service.createdAt=new Date();
       //console.log(service)
@@ -176,7 +176,29 @@ async function run() {
     //get all services api
     app.get("/services",async(req,res)=>{
 
-        result=await servicesCollection.find().toArray()
+        const searchText=req.query.searchText;
+        const type = req.query.type;
+        const min = parseInt(req.query.min) || 0;
+        const max = parseInt(req.query.max) || 99999999;
+
+
+        const query={}
+
+        if (searchText){
+        query.$or = [
+    { serviceName
+: { $regex: searchText, $options: "i" } } 
+];
+        }
+
+        if (type) {
+        query.category = type;
+    }
+
+     query.cost = { $gte: min, $lte: max };
+
+
+        result=await servicesCollection.find(query).toArray()
         res.send(result)
     })
 
