@@ -166,40 +166,67 @@ async function run() {
      //post a service
     app.post("/services",verifyToken,verifyAdmin,async(req,res)=>{
       const service=req.body;
-      service.createdAt=new Date();
+
       //console.log(service)
 
       const result = await servicesCollection.insertOne(service);
       res.send(result)
     })
 
+
+
     //get all services api
     app.get("/services",async(req,res)=>{
+         const { searchText, type  } = req.query;
 
-        const searchText=req.query.searchText;
-        const type = req.query.type;
-        const min = parseInt(req.query.min) || 0;
-        const max = parseInt(req.query.max) || 99999999;
+  let query = {};
 
+  if (searchText) {
+    query.serviceName = { $regex: searchText, $options: "i" }; 
+  }
 
-        const query={}
-
-        if (searchText){
-        query.$or = [
-    { serviceName
-: { $regex: searchText, $options: "i" } } 
-];
-        }
-
-        if (type) {
-        query.category = type;
-    }
-
-     query.cost = { $gte: min, $lte: max };
-
-
+  if (type) {
+    query.category = type;
+  }
+  
+  
         result=await servicesCollection.find(query).toArray()
         res.send(result)
+    })
+
+    
+     
+//     //update the info of service
+    app.patch("/services/:id", verifyToken,verifyAdmin, async (req, res) => {
+    try {
+        const id = req.params.id;
+        const updatedInfo = req.body;
+
+        const query = { _id: new ObjectId(id) };
+        const update = { $set: updatedInfo };
+
+        const result = await servicesCollection.updateOne(query, update);
+        res.send(result);
+
+    } catch (error) {
+        console.log("Error updating service:", error);
+    }
+});
+
+//delete service
+app.delete("/services/:id" ,verifyToken,verifyAdmin,async(req,res)=>{
+    const id=req.params.id;
+    const query={_id:new ObjectId(id)}
+    const result= await servicesCollection.deleteOne(query)
+    res.send(result)
+   })
+
+    //get one service
+    app.get("/services/:id",async(req,res)=>{
+      const id=req.params.id;
+      const query={_id: new ObjectId(id)}
+      const result= await servicesCollection.findOne(query);
+      res.send(result)
     })
 
 
