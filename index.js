@@ -65,6 +65,7 @@ async function run() {
     const dB = client.db("style_decor_db");
     const usersCollection = dB.collection("users");
     const servicesCollection = dB.collection("services");
+    const bookingsCollection = dB.collection("bookings");
 
 
 
@@ -76,6 +77,21 @@ async function run() {
       const user=await usersCollection.findOne(query)
 
       if (!user || user.role!=="admin"){
+        return res.status(403).send({message:"Forbidden Access"})
+      }
+
+     
+      next()
+     }
+
+      //middleware for admin access
+     const verifyUser=async(req,res,next)=>{
+      const email=req.decodedEmail;
+      const query={email}
+
+      const user=await usersCollection.findOne(query)
+
+      if (!user || user.role!=="user"){
         return res.status(403).send({message:"Forbidden Access"})
       }
 
@@ -228,9 +244,38 @@ app.delete("/services/:id" ,verifyToken,verifyAdmin,async(req,res)=>{
       const result= await servicesCollection.findOne(query);
       res.send(result)
     })
+  
+    //bookings related apis
 
+     //post a booking
+    app.post("/bookings",verifyToken,async(req,res)=>{
+      const service=req.body;
 
+    const result = await bookingsCollection.insertOne(service);
+      res.send(result)
+    })
 
+    app.get("/bookings",async(req,res)=>{
+      const {email}=req.query
+      const option={sort:{ bookingDate: 1 }}
+      
+      query={}
+      if (email){
+        query.clientEmail=email
+      }
+
+      
+      const result = await bookingsCollection.find(query,option).toArray();
+      res.send(result)
+    })
+
+    //delete bookings
+  app.delete("/bookings/:id" ,verifyToken,verifyUser,async(req,res)=>{
+    const id=req.params.id;
+    const query={_id:new ObjectId(id)}
+    const result= await bookingsCollection.deleteOne(query)
+    res.send(result)
+   })
 
 
 
