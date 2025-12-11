@@ -276,7 +276,24 @@ app.delete("/services/:id" ,verifyToken,verifyAdmin,async(req,res)=>{
     const result= await bookingsCollection.deleteOne(query)
     res.send(result)
    })
+   
 
+   //patch booking details
+    app.patch("/bookings/:id", verifyToken,verifyUser, async (req, res) => {
+    try {
+        const id = req.params.id;
+        const updatedInfo = req.body;
+
+        const query = { _id: new ObjectId(id) };
+        const update = { $set: updatedInfo };
+
+        const result = await bookingsCollection.updateOne(query, update);
+        res.send(result);
+
+    } catch (error) {
+        console.log("Error updating booking:", error);
+    }
+});
 
 
 
