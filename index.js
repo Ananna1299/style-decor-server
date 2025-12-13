@@ -68,6 +68,7 @@ async function run() {
     const servicesCollection = dB.collection("services");
     const bookingsCollection = dB.collection("bookings");
     const paymentCollection = dB.collection("paymentDetails");
+    const decoratorsCollection = dB.collection("decoratorsCollection");
 
 
 
@@ -306,6 +307,108 @@ app.delete("/services/:id" ,verifyToken,verifyAdmin,async(req,res)=>{
     })
 
 
+    //decorator related apis
+   
+    //post decorator
+    app.post("/decorators",verifyToken,verifyAdmin,async(req,res)=>{
+    const decorator=req.body;
+    decorator.approveStatus="pending"
+    decorator.createdAt=new Date()
+
+
+    const exists = await decoratorsCollection.findOne({
+    userId: decorator.userId,
+  });
+
+  if (exists) {
+    return res.send({ message: "Decorator already created" });
+  }
+   
+    
+    const result=await decoratorsCollection.insertOne(decorator);
+    res.send(result)
+   })
+
+  
+   app.get("/decorators",async(req,res)=>{
+    
+    
+    const result= await decoratorsCollection.find().toArray()
+     res.send(result)
+   })
+
+
+ app.patch("/decorators/:id/approve",verifyToken,verifyAdmin,async(req,res)=>{
+    const decoratorId = req.params.id;
+    const { approveStatus, location } = req.body;
+     const query={_id:new ObjectId(decoratorId)}
+
+    const decorator = await decoratorsCollection.findOne(query);
+
+    if (!decorator) {
+      return res.send("Decorator not found" );
+    }
+
+    if (approveStatus === "approved") {
+      if (!location) {
+        return res.send("Location is required" );
+      }
+
+      const updateAsDecorator={
+          $set: {
+            approveStatus,
+            location,
+            workStatus: "available"
+          }
+        }
+      await decoratorsCollection.updateOne(query,updateAsDecorator);
+
+     //user role=decorator
+      await usersCollection.updateOne(
+         { _id: new ObjectId(decorator.userId) },
+        { $set: { role: "decorator" } }
+      );
+
+      return res.send({
+        success: true,
+        message: "Decorator approved",
+      });
+    }
+
+    
+    if (approveStatus === "rejected") {
+        const rejectReq={
+          $set: {
+            approveStatus,
+            workStatus:"",
+            location:""
+          },
+        }
+      await decoratorsCollection.updateOne(
+      query,
+      rejectReq
+        );
+
+      return res.send({
+        success: true,
+        message: "Decorator rejected",
+      });
+    }
+
+    res.status(400).send({ message: "Invalid approve status" });
+   })
+
+
+
+
+
+
+
+
+
+
+
+
     //stripe related apis
 
     app.post('/create-checkout-session', async (req, res) => {
@@ -430,6 +533,9 @@ app.get("/payments",verifyToken,async(req,res)=>{
   const result=await paymentCollection.find(query,option).toArray();
   res.send(result)
 })
+
+
+
 
 
 
