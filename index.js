@@ -87,7 +87,7 @@ async function run() {
       next()
      }
 
-      //middleware for admin access
+      //middleware for user access
      const verifyUser=async(req,res,next)=>{
       const email=req.decodedEmail;
       const query={email}
@@ -95,6 +95,22 @@ async function run() {
       const user=await usersCollection.findOne(query)
 
       if (!user || user.role!=="user"){
+        return res.status(403).send({message:"Forbidden Access"})
+      }
+
+     
+      next()
+     }
+
+
+     //middleware for decorator access
+     const verifyDecorator=async(req,res,next)=>{
+      const email=req.decodedEmail;
+      const query={email}
+
+      const user=await usersCollection.findOne(query)
+
+      if (!user || user.role!=="decorator"){
         return res.status(403).send({message:"Forbidden Access"})
       }
 
@@ -291,8 +307,7 @@ app.delete("/services/:id" ,verifyToken,verifyAdmin,async(req,res)=>{
    
 
    //patch booking details
-    app.patch("/bookings/:id", verifyToken,verifyUser, async (req, res) => {
-    try {
+    app.patch("/bookings/:id/mybooking", verifyToken,verifyUser, async (req, res) => {
         const id = req.params.id;
         const updatedInfo = req.body;
 
@@ -302,9 +317,7 @@ app.delete("/services/:id" ,verifyToken,verifyAdmin,async(req,res)=>{
         const result = await bookingsCollection.updateOne(query, update);
         res.send(result);
 
-    } catch (error) {
-        console.log("Error updating booking:", error);
-    }
+   
 });
 
 //get one booking
@@ -317,13 +330,36 @@ app.delete("/services/:id" ,verifyToken,verifyAdmin,async(req,res)=>{
 
 //assign decorator patch
 
-app.patch("/bookings/:id/assign-decorator",verifyToken,async (req, res) => {
+app.patch("/bookings/:id/assign-decorator",verifyToken,verifyAdmin,async (req, res) => {
     const bookingId = req.params.id;
     const { decoratorId, decoratorName, decoratorEmail } = req.body;
 
     if (!decoratorId) {
         return res.send("Decorator info missing" );
       }
+
+
+    // get current booking
+    const booking = await bookingsCollection.findOne({
+      _id: new ObjectId(bookingId),
+    });
+
+    if (!booking) {
+      return res.status(404).send({ message: "Booking not found" });
+    }
+
+
+    const conflict = await bookingsCollection.findOne({
+      decoratorId,
+      bookingDate: booking.bookingDate,
+      status: "decorator-assigned",
+    });
+
+    if (conflict) {
+      return res.status(400).send({
+        message: "Decorator already assigned on this date",
+      });
+    }
 
     const bookingQuery = { _id: new ObjectId(bookingId) };
 
@@ -338,16 +374,9 @@ app.patch("/bookings/:id/assign-decorator",verifyToken,async (req, res) => {
 
       const bookingResult = await bookingsCollection.updateOne(bookingQuery,bookingUpdate);
 
-      const decoratorQuery = { _id: new ObjectId(decoratorId) };
-      const decoratorUpdate = {
-        $set: {
-          workStatus: "assigned-work",
-        },
-      };
+      
 
-      const decoratorResult=await decoratorsCollection.updateOne(decoratorQuery,decoratorUpdate);
-
-      res.send(decoratorResult)
+      res.send(bookingResult)
 
 })
 
@@ -360,7 +389,7 @@ app.patch("/bookings/:id/assign-decorator",verifyToken,async (req, res) => {
 
 
 
-    //decorator related apis
+//decorator related apis
    
     //post decorator
     app.post("/decorators",verifyToken,verifyAdmin,async(req,res)=>{
