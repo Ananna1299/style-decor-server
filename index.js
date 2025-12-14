@@ -248,6 +248,8 @@ app.delete("/services/:id" ,verifyToken,verifyAdmin,async(req,res)=>{
       res.send(result)
     })
   
+
+
     //bookings related apis
 
      //post a booking
@@ -257,14 +259,21 @@ app.delete("/services/:id" ,verifyToken,verifyAdmin,async(req,res)=>{
     const result = await bookingsCollection.insertOne(service);
       res.send(result)
     })
+
+
+
    //get all my bookings sorted by date
     app.get("/bookings",async(req,res)=>{
-      const {email}=req.query
+      const {email,status}=req.query
       const option={sort:{ bookingDate: 1 }}
       
       query={}
       if (email){
         query.clientEmail=email
+      }
+
+      if (status){
+        query.status=status;
       }
 
       
@@ -306,6 +315,50 @@ app.delete("/services/:id" ,verifyToken,verifyAdmin,async(req,res)=>{
       res.send(result)
     })
 
+//assign decorator patch
+
+app.patch("/bookings/:id/assign-decorator",verifyToken,async (req, res) => {
+    const bookingId = req.params.id;
+    const { decoratorId, decoratorName, decoratorEmail } = req.body;
+
+    if (!decoratorId) {
+        return res.send("Decorator info missing" );
+      }
+
+    const bookingQuery = { _id: new ObjectId(bookingId) };
+
+      const bookingUpdate = {
+        $set: {
+          decoratorId,
+          decoratorName,
+          decoratorEmail,
+          status: "decorator-assigned",
+        },
+      };
+
+      const bookingResult = await bookingsCollection.updateOne(bookingQuery,bookingUpdate);
+
+      const decoratorQuery = { _id: new ObjectId(decoratorId) };
+      const decoratorUpdate = {
+        $set: {
+          workStatus: "assigned-work",
+        },
+      };
+
+      const decoratorResult=await decoratorsCollection.updateOne(decoratorQuery,decoratorUpdate);
+
+      res.send(decoratorResult)
+
+})
+
+
+
+
+
+
+
+
+
 
     //decorator related apis
    
@@ -329,12 +382,24 @@ app.delete("/services/:id" ,verifyToken,verifyAdmin,async(req,res)=>{
     res.send(result)
    })
 
-  
+  //get the decorators
    app.get("/decorators",async(req,res)=>{
-    const { approveStatus }=req.query;
+    const { approveStatus, workStatus, location, specialty  }=req.query;
     const query={}
     if(approveStatus){
       query.approveStatus=approveStatus;
+    }
+
+    if (workStatus){
+      query.workStatus=workStatus;
+    }
+
+    if (location){
+      query.location=location
+    }
+
+    if (specialty) {
+      query.specialties = { $in: [specialty] };
     }
     
     const result= await decoratorsCollection.find(query).toArray()
@@ -481,6 +546,8 @@ app.patch("/decorators/:id/enable", verifyToken, verifyAdmin, async (req, res) =
 
   res.send({ success: true, message: "Decorator enabled" });
 });
+
+
 
 
 
