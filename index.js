@@ -257,7 +257,7 @@ app.delete("/services/:id" ,verifyToken,verifyAdmin,async(req,res)=>{
     const result = await bookingsCollection.insertOne(service);
       res.send(result)
     })
-
+   //get all my bookings sorted by date
     app.get("/bookings",async(req,res)=>{
       const {email}=req.query
       const option={sort:{ bookingDate: 1 }}
@@ -331,16 +331,20 @@ app.delete("/services/:id" ,verifyToken,verifyAdmin,async(req,res)=>{
 
   
    app.get("/decorators",async(req,res)=>{
+    const { approveStatus }=req.query;
+    const query={}
+    if(approveStatus){
+      query.approveStatus=approveStatus;
+    }
     
-    
-    const result= await decoratorsCollection.find().toArray()
+    const result= await decoratorsCollection.find(query).toArray()
      res.send(result)
    })
 
 
  app.patch("/decorators/:id/approve",verifyToken,verifyAdmin,async(req,res)=>{
     const decoratorId = req.params.id;
-    const { approveStatus, location } = req.body;
+    const { approveStatus, location, ratings,specialties} = req.body;
      const query={_id:new ObjectId(decoratorId)}
 
     const decorator = await decoratorsCollection.findOne(query);
@@ -353,12 +357,21 @@ app.delete("/services/:id" ,verifyToken,verifyAdmin,async(req,res)=>{
       if (!location) {
         return res.send("Location is required" );
       }
+      if (!ratings) {
+        return res.send("Ratings is required" );
+      }
+      if (!specialties ||specialties.length==0){
+         return res.send("At least one specialties is required" );
+      }
+      
 
       const updateAsDecorator={
           $set: {
             approveStatus,
             location,
-            workStatus: "available"
+            workStatus: "available",
+            ratings,
+            specialties
           }
         }
       await decoratorsCollection.updateOne(query,updateAsDecorator);
@@ -381,7 +394,9 @@ app.delete("/services/:id" ,verifyToken,verifyAdmin,async(req,res)=>{
           $set: {
             approveStatus,
             workStatus:"",
-            location:""
+            location:"",
+            ratings:0,
+            specialties:[]
           },
         }
       await decoratorsCollection.updateOne(
@@ -395,8 +410,83 @@ app.delete("/services/:id" ,verifyToken,verifyAdmin,async(req,res)=>{
       });
     }
 
-    res.status(400).send({ message: "Invalid approve status" });
+    res.send({ message: "Invalid approve status" });
    })
+
+
+  //delete the decorator
+  app.delete("/decorators/:id", verifyToken, verifyAdmin, async (req, res) => {
+  const decoratorId = req.params.id;
+  const query={ _id: new ObjectId(decoratorId) }
+  const decorator = await decoratorsCollection.findOne(query);
+  const userId=decorator?.userId
+    
+
+  if (!decorator) {
+      return res.send("Decorator not found" );
+    }
+   await decoratorsCollection.deleteOne(query);
+
+   if (decorator.userId){
+   await usersCollection.updateOne(
+      { _id: new ObjectId(userId) },
+      { $set: { role: "user" } }
+    );
+  }
+
+    res.send( "Decorator deleted and role reset to user" );
+})
+
+
+//disabled decorator
+app.patch("/decorators/:id/disable", verifyToken, verifyAdmin, async (req, res) => {
+   const decoratorId = req.params.id;
+
+   const query={_id:new ObjectId(decoratorId)}
+
+    const decorator = await decoratorsCollection.findOne(query);
+
+    if (!decorator) {
+      return res.send("Decorator not found" );
+    }
+
+
+    await decoratorsCollection.updateOne(
+      query,
+      { $set: { workStatus: "disabled" } }
+    );
+
+    res.send({ success: true, message: "Decorator disabled successfully" });
+})
+
+
+
+//enable decorator
+app.patch("/decorators/:id/enable", verifyToken, verifyAdmin, async (req, res) => {
+  const decoratorId = req.params.id;
+
+   const query={_id:new ObjectId(decoratorId)}
+
+    const decorator = await decoratorsCollection.findOne(query);
+
+    if (!decorator) {
+      return res.send("Decorator not found" );
+    }
+
+
+  await decoratorsCollection.updateOne(
+    query,
+    { $set: { workStatus: "available" } }
+  );
+
+  res.send({ success: true, message: "Decorator enabled" });
+});
+
+
+
+
+
+
 
 
 
@@ -517,10 +607,13 @@ app.patch('/payment-success', verifyToken,async (req, res) => {
 //payment related apis
 
 app.get("/payments",verifyToken,async(req,res)=>{
-  const email=req.query.email
-  const query={}
-   const option={sort:{ paidAt: -1 }}
-  if (email){
+  const email=req.query.email;
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+
+   const query={}
+
+   if (email){
     query.customer_email=email
    
     //console.log(req.decodedEmail)
@@ -530,6 +623,15 @@ app.get("/payments",verifyToken,async(req,res)=>{
     }
 
   }
+
+
+   const option={
+   sort:{ paidAt: -1 },
+   skip: (page - 1) * limit,
+   limit: limit,
+  
+  }
+  
   const result=await paymentCollection.find(query,option).toArray();
   res.send(result)
 })
