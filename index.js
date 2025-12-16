@@ -32,7 +32,9 @@ const verifyToken=async (req,res,next)=>{
     //console.log(idToken)
   const decoded=await admin.auth().verifyIdToken(idToken)
   //console.log(decoded)
+  //console.log(decoded.email)
   req.decodedEmail=decoded.email
+  //console.log(req.decodedEmail)
 
   next();
 
@@ -106,9 +108,12 @@ async function run() {
      //middleware for decorator access
      const verifyDecorator=async(req,res,next)=>{
       const email=req.decodedEmail;
+    
+      
       const query={email}
 
       const user=await usersCollection.findOne(query)
+     
 
       if (!user || user.role!=="decorator"){
         return res.status(403).send({message:"Forbidden Access"})
@@ -128,8 +133,8 @@ async function run() {
     user.createdAt=new Date()
     const email=user.email
 
-    console.log("Received user:", user);   // ← add this
-  console.log("Photo URL:", user.photoURL); // ← add this
+    console.log("Received user:", user);   
+  console.log("Photo URL:", user.photoURL); 
 
 
 
@@ -155,8 +160,8 @@ async function run() {
     const query={}
     if (searchText){
       query.$or=[
-        { displayName: { $regex: searchText, $options: "i" } },   // case-insensitive
-      { email: { $regex: searchText, $options: "i" } }   // case-insensitive
+        { displayName: { $regex: searchText, $options: "i" } },   
+      { email: { $regex: searchText, $options: "i" } }   
       ]
     }
     const cursor=await usersCollection.find(query).toArray();
@@ -319,6 +324,108 @@ app.delete("/services/:id" ,verifyToken,verifyAdmin,async(req,res)=>{
 
    
 });
+
+
+
+/////////////////////////////
+
+app.get("/bookings/decorators", verifyToken,verifyDecorator, async (req, res) => {
+  
+  
+  //console.log(decoratorEmail)
+  const {status,decoratorEmail}=req.query
+  const query = {}
+  if (decoratorEmail){
+    query.decoratorEmail=decoratorEmail
+  }
+
+   if (status!=="completed"){
+        
+        query.status={ $nin: ["completed" ] }
+
+      }
+   const result = await bookingsCollection.find(query).toArray();
+
+    res.send(result);
+
+})
+
+
+
+app.patch("/bookings/:id/status", verifyToken,verifyDecorator, async (req, res) => {
+  const { status } = req.body;
+  const id = req.params.id;
+  const query={_id:new ObjectId(id)}
+
+  const booking = await bookingsCollection.findOne(query);
+
+  if (!booking) {
+    return res.send({ message: "Booking not found" });
+  }
+
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const bookingDate = new Date(booking.bookingDate);
+  bookingDate.setHours(0, 0, 0, 0);
+
+
+  const onBookingDateStatus = [ "on-the-way","setup-in-progress","completed"];
+
+  if (onBookingDateStatus.includes(status) && today < bookingDate) {
+    return res.status(400).send({message: "Status cannot be updated before booking date"});
+  }
+
+  const updatedStatus={ 
+    $set: {
+       status 
+      } 
+  }
+
+  
+
+  const result = await bookingsCollection.updateOne( query,updatedStatus);
+
+  res.send(result);
+  
+})
+
+app.patch("/bookings/:id/reject", verifyToken,verifyDecorator, async (req, res) => {
+  const id = req.params.id;
+
+  const query=  { _id: new ObjectId(id) }
+
+  const updateInfo={
+      $unset: {
+        decoratorId: "",
+        decoratorName: "",
+        decoratorEmail: "",
+      },
+      $set: { status: "pending-decorator" },
+    }
+
+  const result = await bookingsCollection.updateOne(query,updateInfo);
+
+  res.send(result);
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 //get one booking
     app.get("/bookings/:id",verifyToken,verifyUser,async(req,res)=>{
@@ -595,6 +702,7 @@ app.patch("/decorators/:id/enable", verifyToken, verifyAdmin, async (req, res) =
 
 
 
+
     //stripe related apis
 
     app.post('/create-checkout-session', async (req, res) => {
@@ -638,13 +746,14 @@ app.patch("/decorators/:id/enable", verifyToken, verifyAdmin, async (req, res) =
 //update the payment status---(pay to paid)
 app.patch('/payment-success', verifyToken,async (req, res) => {
   const sessionId = req.query.session_id;   
-  //console.log("Session ID:", sessionId);
+  console.log("Session ID:", sessionId);
   
 
    const session = await stripe.checkout.sessions.retrieve(sessionId);
-   //console.log("after retrieve",session)
+   console.log("after retrieve",session)
 
    const transactionId=session.payment_intent;
+   console.log(transactionId)
 
 
    // check if already exists
