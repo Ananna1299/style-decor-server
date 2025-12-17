@@ -746,7 +746,55 @@ app.patch("/decorators/:id/enable", verifyToken, verifyAdmin, async (req, res) =
 
 
 
+// revenue/category
+app.get("/admin/revenue/category", async (req, res) => {
 
+    const revenueByCategory = await bookingsCollection.aggregate([
+    
+      { $match: { status: "completed", paymentStatus: "paid" } },
+
+      
+      {
+        $group: {
+          _id: "$category",
+          totalRevenue: { $sum: "$totalCost" },
+          totalOrders: { $sum: 1 },
+        },
+      },
+
+      
+      { $sort: { totalRevenue: -1 } },
+    ]).toArray();
+
+    res.send(revenueByCategory);
+   
+});
+
+
+
+
+// GET /admin/service-demand
+app.get("/service-demand", async (req, res) => {
+  
+    const serviceDemand = await bookingsCollection.aggregate([
+     
+      { $match: { paymentStatus: "paid" } },
+
+     
+      {
+        $group: {
+          _id: "$serviceName",
+          bookingsCount: { $sum: 1 },
+        },
+      },
+
+      
+      { $sort: { bookingsCount: -1 } },
+    ]).toArray();
+
+    res.send(serviceDemand);
+  
+});
 
 
 
