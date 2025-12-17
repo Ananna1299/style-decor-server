@@ -352,6 +352,45 @@ app.get("/bookings/decorators", verifyToken,verifyDecorator, async (req, res) =>
 
 
 
+
+
+app.get("/bookings/decorators/today", verifyToken,verifyDecorator, async (req, res) => {
+  
+  
+  
+  const {decoratorEmail}=req.query
+  const query = {}
+  if (decoratorEmail){
+    query.decoratorEmail=decoratorEmail
+  }
+
+   
+   const result = await bookingsCollection.find(query).toArray();
+
+    res.send(result);
+
+})
+
+
+app.get("/bookings/decorators/completed", verifyToken,verifyDecorator, async (req, res) => {
+  const {decoratorEmail,status}=req.query
+  const query = {}
+  if (decoratorEmail){
+    query.decoratorEmail=decoratorEmail
+  }
+
+  if(status){
+    query.status=status
+  }
+
+  const result = await bookingsCollection.find(query).toArray();
+
+    res.send(result);
+
+})
+
+
+
 app.patch("/bookings/:id/status", verifyToken,verifyDecorator, async (req, res) => {
   const { status } = req.body;
   const id = req.params.id;
@@ -455,11 +494,11 @@ app.patch("/bookings/:id/assign-decorator",verifyToken,verifyAdmin,async (req, r
       return res.status(404).send({ message: "Booking not found" });
     }
 
-
+    const busyStatuses = ["decorator-assigned","materials-prepared", "on-the-way","setup-in-progress"];
     const conflict = await bookingsCollection.findOne({
       decoratorId,
       bookingDate: booking.bookingDate,
-      status: "decorator-assigned",
+      status: { $in: busyStatuses }
     });
 
     if (conflict) {
@@ -518,6 +557,10 @@ app.patch("/bookings/:id/assign-decorator",verifyToken,verifyAdmin,async (req, r
     res.send(result)
    })
 
+
+
+  
+
   //get the decorators
    app.get("/decorators",async(req,res)=>{
     const { approveStatus, workStatus, location, specialty  }=req.query;
@@ -541,6 +584,24 @@ app.patch("/bookings/:id/assign-decorator",verifyToken,verifyAdmin,async (req, r
     const result= await decoratorsCollection.find(query).toArray()
      res.send(result)
    })
+
+
+ //get top decorators
+    app.get("/decorators/top",async(req,res)=>{
+
+       const limit = parseInt(req.query.limit) || 6;
+    
+    const result = await decoratorsCollection
+      .find({})
+      .sort({ ratings: -1 })   
+      .limit(limit)            
+      .toArray();
+
+    res.send(result);
+    })
+
+
+
 
 
  app.patch("/decorators/:id/approve",verifyToken,verifyAdmin,async(req,res)=>{
