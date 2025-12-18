@@ -262,7 +262,7 @@ async function run() {
       res.send(result);
     });
 
-    //get all my bookings sorted by date
+    //get all  bookings 
     app.get("/bookings", async (req, res) => {
       const { email, status } = req.query;
       const option = { sort: { bookingDate: 1 } };
