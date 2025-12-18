@@ -133,7 +133,7 @@ async function run() {
       res.send({ role: user?.role || "user" });
     });
     //get all the users
-    app.get("/users", verifyToken, async (req, res) => {
+    app.get("/users", verifyToken,verifyAdmin, async (req, res) => {
       const searchText = req.query.searchText;
       const query = {};
       if (searchText) {
