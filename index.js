@@ -150,6 +150,20 @@ async function run() {
       res.send(cursor);
     });
 
+
+  // update user profile
+  app.patch("/users/:email/update/profile", async (req, res) => {
+  const email = req.params.email;
+  const updatedData = req.body;
+
+  const result = await usersCollection.updateOne(
+    { email },
+    { $set: updatedData }
+  );
+
+  res.send(result);
+});
+
     // update the user info
     app.patch("/users/:id/role", verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
@@ -182,6 +196,12 @@ async function run() {
       res.send(result);
     });
 
+
+
+
+
+
+
     //service related apis
 
     //post a service
@@ -196,17 +216,20 @@ async function run() {
 
     //get all services api
     app.get("/services", async (req, res) => {
-      const { searchText, type, minBudget, maxBudget } = req.query;
+      const { searchText, type, minBudget, maxBudget,limit=0,skip=0,sort="cost",order="desc" } = req.query;
 
       let query = {};
+
+      const sortOption={}
+        sortOption[sort || "cost"]= order==="asc"? 1: -1;
 
       if (searchText) {
         query.serviceName = { $regex: searchText, $options: "i" };
       }
 
-      if (type) {
-        query.category = type;
-      }
+       if (type && type !== "All") {
+         query.category = type;
+        }
 
       if (minBudget || maxBudget) {
         query.cost = {};
@@ -218,10 +241,16 @@ async function run() {
         if (maxBudget) {
           query.cost.$lte = Number(maxBudget);
         }
-      }
+        }
 
-      result = await servicesCollection.find(query).toArray();
-      res.send(result);
+      result = await servicesCollection.find(query)
+      .limit(Number(limit))
+      .skip(Number(skip))
+      .sort(sortOption)
+      .toArray();
+
+       const count=await servicesCollection.countDocuments(query)
+      res.send({result,total:count});
     });
 
     //     //update the info of service
